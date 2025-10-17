@@ -226,6 +226,28 @@ void AADemoCharacter::OnRep_Current_Weapon()
     IsLocallyControlled(),
     AttachMesh ? *AttachMesh->GetName() : TEXT("None")
 );
+
+    if (USkeletalMeshComponent*Mesh3P=GetMesh())
+    {
+        if (UAnimInstance*AnimInstance=Mesh3P->GetAnimInstance())
+        {
+            bool bWeaponEquipped=(CurrentWeapon!=nullptr);
+
+            UClass *AnimClass =AnimInstance->GetClass();
+
+            if (FBoolProperty*BoolProp=FindFProperty<FBoolProperty>(AnimClass,TEXT("bIsRifleEquipped")))
+            {
+                BoolProp->SetPropertyValue_InContainer(AnimInstance,bWeaponEquipped);
+
+                UE_LOG(LogTemp, Warning, TEXT("AnimBP updated: bIsRifleEquipped set to %s"), bWeaponEquipped ? TEXT("True") : TEXT("False"));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("AnimBP variable 'bIsRifleEquipped' not found or not a boolean."));
+            }
+            
+        }
+    }
 }
 
 

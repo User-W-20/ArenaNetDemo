@@ -69,15 +69,20 @@ void AAWeapon::Fire()
 
     if (OwnerPawn->IsLocallyControlled())
     {
-        Multicast_PlayFireEffects(MuzzleLoc,TraceEnd);
 
         if (!OwnerPawn->HasAuthority())
         {
             Server_Fire(ViewLoc,FVector_NetQuantizeNormal(ShootDir));
+
+            Multicast_PlayFireEffects_Implementation(MuzzleLoc,TraceEnd);
             return;
         }
     }
-    
+
+    if (HasAuthority())
+    {
+        Server_Fire_Implementation(ViewLoc,FVector_NetQuantize(ShootDir));
+    }
 }
 
 
@@ -129,8 +134,12 @@ void AAWeapon::Multicast_PlayFireEffects_Implementation(const FVector_NetQuantiz
         FRotator MuzzleRotation=WeaponMesh->GetSocketRotation(TEXT("Muzzle"));
         UGameplayStatics::SpawnEmitterAtLocation(GetWorld(),MuzzleFlashFX,MuzzleLocation,MuzzleRotation);
     }
-    
-    DrawDebugLine(GetWorld(),MuzzleLocation,TraceEnd,FColor::Yellow,true,5.0f,0,1.0f);
+
+    APawn* OwnerPawn=Cast<APawn>(GetOwner());
+    if (OwnerPawn&& OwnerPawn->IsLocallyControlled())
+    {
+        DrawDebugLine(GetWorld(),MuzzleLocation,TraceEnd,FColor::Yellow,true,5.0f,0,1.0f);
+    }
 
     FHitResult Hit;
     FCollisionQueryParams QueryParams;
