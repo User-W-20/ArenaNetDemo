@@ -13,20 +13,29 @@
 UCLASS()
 class ARENANETDEMO_API AADemoPlayerState : public APlayerState
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	AADemoPlayerState();
+    AADemoPlayerState();
 
-	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
+    UPROPERTY(ReplicatedUsing = Onrep_kills)
+    int32 Kills;
 
-	UPROPERTY(Replicated)
-	int32 Kills;
+    UPROPERTY(ReplicatedUsing = OnRep_Deaths)
+    int32 Deaths;
 
-	UPROPERTY(Replicated)
-	int32 Deaths;
+    UFUNCTION()
+    void OnRep_kills();
 
-	void IncrementKills(int32 Amount=1);
+    UFUNCTION()
+    void OnRep_Deaths();
 
-	void IncrementDeaths(int Amount=1);
+    UFUNCTION(BlueprintCallable)
+    void IncrementKills();
+
+    UFUNCTION(BlueprintCallable)
+    void IncrementDeaths();
+
+protected:
+    virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty> &OutLifetimeProps) const override;
 };

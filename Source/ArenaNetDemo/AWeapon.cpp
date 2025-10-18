@@ -24,6 +24,9 @@ AAWeapon::AAWeapon()
     WeaponMesh->SetIsReplicated(true);
     
 	BaseDamage=20.0f;
+
+    CurrentAmmo=MaxAmmo;
+    SetReplicates(true);
 }
 
 // Called when the game starts or when spawned
@@ -43,81 +46,80 @@ void AAWeapon::Tick(float DeltaTime)
 void AAWeapon::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(AAWeapon, CurrentAmmo);
 }
-
 
 void AAWeapon::Fire()
 {
-    APawn* OwnerPawn=Cast<APawn>(GetOwner());
-    if (!OwnerPawn)return;
+    APawn* OwnerPawn = Cast<APawn>(GetOwner());
+    if (!OwnerPawn) return;
 
     FVector ViewLoc;
     FRotator ViewRot;
-    if (AController*PC=OwnerPawn->GetController())
+    if (AController* PC = OwnerPawn->GetController())
     {
-        PC->GetPlayerViewPoint(ViewLoc,ViewRot);
+        PC->GetPlayerViewPoint(ViewLoc, ViewRot);
     }
     else
     {
-        ViewLoc=WeaponMesh?WeaponMesh->GetSocketLocation(TEXT("Muzzle")):OwnerPawn->GetActorLocation();
-        ViewRot=OwnerPawn->GetControlRotation();
+        ViewLoc = WeaponMesh ? WeaponMesh->GetSocketLocation(MuzzleSocketName) : OwnerPawn->GetActorLocation();
+        ViewRot = OwnerPawn->GetControlRotation();
     }
 
-    FVector ShootDir=ViewRot.Vector();
-    FVector TraceEnd=ViewLoc+ShootDir*50000.0f;
-    FVector MuzzleLoc=WeaponMesh?WeaponMesh->GetSocketLocation(TEXT("Muzzle")):ViewLoc;
+    const FVector ShootDir = ViewRot.Vector();
+    const FVector TraceStart = ViewLoc;
 
-    if (OwnerPawn->IsLocallyControlled())
+    if (!HasAuthority())
     {
-
-        if (!OwnerPawn->HasAuthority())
+        Server_Fire(TraceStart, FVector_NetQuantizeNormal(ShootDir));
+        if (WeaponMesh && MuzzleFlashFX && OwnerPawn->IsLocallyControlled())
         {
-            Server_Fire(ViewLoc,FVector_NetQuantizeNormal(ShootDir));
-
-            Multicast_PlayFireEffects_Implementation(MuzzleLoc,TraceEnd);
-            return;
+            UGameplayStatics::SpawnEmitterAttached(MuzzleFlashFX, WeaponMesh, MuzzleSocketName);
+            if (FireSound) UGameplayStatics::PlaySoundAtLocation(this, FireSound, WeaponMesh->GetSocketLocation(MuzzleSocketName));
         }
+        return;
     }
-
-    if (HasAuthority())
-    {
-        Server_Fire_Implementation(ViewLoc,FVector_NetQuantize(ShootDir));
-    }
+    Server_Fire_Implementation(TraceStart, FVector_NetQuantizeNormal(ShootDir));
 }
 
 
 void AAWeapon::Server_Fire_Implementation(const FVector &TraceStart, const FVector_NetQuantizeNormal &ShootDir)
 {
-    if (!HasAuthority())return;
+    if (!HasAuthority()) return;
 
-    FVector TraceEnd=TraceStart+ShootDir*50000.0f;
+    if (CurrentAmmo <= 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Server] 无子弹，拒绝开火"));
+        return;
+    }
+    --CurrentAmmo;
+    UE_LOG(LogTemp, Warning, TEXT("[Server] Fire executed. Remaining ammo: %d"), CurrentAmmo);
 
+    const float TraceDistance = 50000.0f;
+    FVector TraceEnd = TraceStart + ShootDir * TraceDistance;
+
+    
     FHitResult Hit;
     FCollisionQueryParams QueryParams;
-    APawn *OwnerPawn=Cast<APawn>(GetOwner());
-    if (OwnerPawn)
-    {
-        QueryParams.AddIgnoredActor(OwnerPawn);
-    }
+    APawn* OwnerPawn = Cast<APawn>(GetOwner());
+    if (OwnerPawn) QueryParams.AddIgnoredActor(OwnerPawn);
     QueryParams.AddIgnoredActor(this);
-    QueryParams.bTraceComplex=true;
+    QueryParams.bTraceComplex = true;
 
-    bool bHit=GetWorld()->LineTraceSingleByChannel(Hit,TraceStart,TraceEnd,ECC_Visibility,QueryParams);
+    bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Pawn, QueryParams);
 
     if (bHit)
     {
-        AActor*HitActor=Hit.GetActor();
-        if (HitActor)
+        if (AActor* HitActor = Hit.GetActor())
         {
             UGameplayStatics::ApplyPointDamage(HitActor, BaseDamage, ShootDir, Hit, OwnerPawn ? OwnerPawn->GetController() : nullptr, this, nullptr);
         }
-        Multicast_PlayFireEffects(WeaponMesh ? WeaponMesh->GetSocketLocation(MuzzleSocketName) : TraceStart, Hit.ImpactPoint);
-    }else
-    {
-        Multicast_PlayFireEffects(WeaponMesh ? WeaponMesh->GetSocketLocation(MuzzleSocketName) : TraceStart, TraceEnd);
     }
-    DrawDebugLine(GetWorld(), TraceStart, bHit ? Hit.ImpactPoint : TraceEnd, FColor::Red, false, 1.0f, 0, 1.0f);
+
+    const FVector MuzzleLoc = WeaponMesh ? WeaponMesh->GetSocketLocation(MuzzleSocketName) : TraceStart;
+    Multicast_PlayFireEffects(MuzzleLoc, bHit ? Hit.ImpactPoint : TraceEnd);
 }
+
 
 
 void AAWeapon::Multicast_PlayFireEffects_Implementation(const FVector_NetQuantize &MuzzleLocation, const FVector_NetQuantize &TraceEnd)
@@ -136,10 +138,6 @@ void AAWeapon::Multicast_PlayFireEffects_Implementation(const FVector_NetQuantiz
     }
 
     APawn* OwnerPawn=Cast<APawn>(GetOwner());
-    if (OwnerPawn&& OwnerPawn->IsLocallyControlled())
-    {
-        DrawDebugLine(GetWorld(),MuzzleLocation,TraceEnd,FColor::Yellow,true,5.0f,0,1.0f);
-    }
 
     FHitResult Hit;
     FCollisionQueryParams QueryParams;
@@ -171,3 +169,38 @@ bool AAWeapon::Server_Fire_Validate(const FVector &TraceStart, const FVector_Net
 {
     return true;
 }
+
+
+void AAWeapon::Reload()
+{
+    if (!HasAuthority())
+    {
+        Server_Reload();
+        return;
+    }
+
+    CurrentAmmo = MaxAmmo;
+    UE_LOG(LogTemp, Warning, TEXT("[Server] Reload complete, ammo=%d"), CurrentAmmo);
+}
+
+
+void AAWeapon::OnRep_CurrentAmmo()
+{
+    UE_LOG(LogTemp, Warning, TEXT("客户端收到弹药更新：%d"), CurrentAmmo);
+}
+
+void AAWeapon::Server_Reload_Implementation()
+{
+   Reload();
+}
+
+int32 AAWeapon::GetCurrentAmmo() const
+{
+    return  CurrentAmmo;
+}
+
+int32 AAWeapon::GetMaxAmmo() const
+{
+    return  MaxAmmo;
+}
+

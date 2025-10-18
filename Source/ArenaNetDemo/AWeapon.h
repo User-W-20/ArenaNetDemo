@@ -25,20 +25,20 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
     class USkeletalMeshComponent *WeaponMesh;
 
-    UFUNCTION(Server,Reliable,WithValidation)
-    void Server_Fire(const FVector&TraceStart,const FVector_NetQuantizeNormal&ShootDir);
-    bool Server_Fire_Validate(const FVector& TraceStart, const FVector_NetQuantizeNormal& ShootDir);
-    void Server_Fire_Implementation(const FVector& TraceStart, const FVector_NetQuantizeNormal& ShootDir);
-    
+    UFUNCTION(Server, Reliable, WithValidation)
+    void Server_Fire(const FVector &TraceStart, const FVector_NetQuantizeNormal &ShootDir);
+    bool Server_Fire_Validate(const FVector &TraceStart, const FVector_NetQuantizeNormal &ShootDir);
+    void Server_Fire_Implementation(const FVector &TraceStart, const FVector_NetQuantizeNormal &ShootDir);
+
 
     UPROPERTY(EditDefaultsOnly, Category="Weapon")
     float BaseDamage;
 
-    UPROPERTY(EditDefaultsOnly,Category= "Weapon")
-    FName MuzzleSocketName=TEXT("Muzzle");
-    
+    UPROPERTY(EditDefaultsOnly, Category= "Weapon")
+    FName MuzzleSocketName = TEXT("Muzzle");
+
     UFUNCTION(NetMulticast, Reliable)
-    void Multicast_PlayFireEffects(const FVector_NetQuantize& MuzzleLocation,const FVector_NetQuantize &TraceEnd);
+    void Multicast_PlayFireEffects(const FVector_NetQuantize &MuzzleLocation, const FVector_NetQuantize &TraceEnd);
 
     //弹孔
     UPROPERTY(EditDefaultsOnly, Category="FX")
@@ -55,11 +55,34 @@ protected:
     UPROPERTY(EditDefaultsOnly, Category="FX")
     class USoundBase *FireSound;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
+    int32 MaxAmmo = 30;
 public:
     // Called every frame
     virtual void Tick(float DeltaTime) override;
 
     void Fire();
 
-    FORCEINLINE USkeletalMeshComponent *GetWeaponMesh()const{return WeaponMesh;}
+    UFUNCTION(BlueprintCallable, Category="Weapon")
+    void Reload();
+
+    UPROPERTY(ReplicatedUsing=OnRep_CurrentAmmo, BlueprintReadOnly, Category="Weapon")
+    int32 CurrentAmmo;
+
+    UFUNCTION()
+    void OnRep_CurrentAmmo();
+
+    UFUNCTION(Server,Reliable)
+    void Server_Reload();
+
+    UFUNCTION(BlueprintCallable,Category="Weapon")
+    int32 GetCurrentAmmo()const;
+
+    UFUNCTION(BlueprintCallable, Category="Weapon")
+    int32 GetMaxAmmo() const;
+    
+    FORCEINLINE USkeletalMeshComponent *GetWeaponMesh() const
+    {
+        return WeaponMesh;
+    }
 };

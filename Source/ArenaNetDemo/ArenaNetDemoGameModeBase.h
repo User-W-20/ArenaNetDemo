@@ -32,4 +32,7 @@ public:
 
     //重生请求
     void RequestRespawn(ACharacter*DeadCharter);
+
+    UFUNCTION(NetMulticast,Reliable)
+    void Multicast_OnMatchEnd(AADemoPlayerState*WinnerPS);
 };

@@ -15,27 +15,30 @@ AADemoCharacter::AADemoCharacter()
     PrimaryActorTick.bCanEverTick = true;
     bReplicates                   = true;
 
+    SetReplicates(true);
+
     //第一人称
     FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
-    
+
     //摄像机附加到胶囊体
     FirstPersonCamera->SetupAttachment(GetCapsuleComponent());
     FirstPersonCamera->SetRelativeLocation(FVector(-10.0f, 0.0f, BaseEyeHeight));
     FirstPersonCamera->bUsePawnControlRotation = true;
 
     //第一人称手臂
-    FirstPersonMesh=CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
+    FirstPersonMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FirstPersonMesh"));
     FirstPersonMesh->SetupAttachment(FirstPersonCamera);
     FirstPersonMesh->SetOnlyOwnerSee(true);
-    FirstPersonMesh->bCastDynamicShadow=false;
-    FirstPersonMesh->CastShadow=false;
+    FirstPersonMesh->bCastDynamicShadow = false;
+    FirstPersonMesh->CastShadow         = false;
     FirstPersonMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
 
+    //第三人称
     GetMesh()->SetupAttachment(GetCapsuleComponent());
     GetMesh()->SetOwnerNoSee(true);
-    GetMesh()->bCastDynamicShadow=true;
-    GetMesh()->CastShadow=true;
-    
+    GetMesh()->bCastDynamicShadow = true;
+    GetMesh()->CastShadow         = true;
+
     //绕Z轴旋转
     bUseControllerRotationPitch = false;
     bUseControllerRotationYaw   = true;
@@ -45,12 +48,13 @@ AADemoCharacter::AADemoCharacter()
     GetCharacterMovement()->MaxAcceleration           = 2048.0f;
     GetCharacterMovement()->SetIsReplicated(true);
 
-    Health=MaxHealth;
-    
+    Health = MaxHealth;
 
-    static  ConstructorHelpers::FObjectFinder<USkeletalMesh>MeshAsset(TEXT("SkeletalMesh'/Game/Mannequin/Character/Mesh/SK_Mannequin.SK_Mannequin'"));
+    static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(
+        TEXT("SkeletalMesh'/Game/Mannequin/Character/Mesh/SK_Mannequin.SK_Mannequin'"));
     if (MeshAsset.Succeeded())
     {
+        GetMesh()->SetSkeletalMesh(MeshAsset.Object);
         FirstPersonMesh->SetSkeletalMesh(MeshAsset.Object);
     }
 }
@@ -59,13 +63,25 @@ AADemoCharacter::AADemoCharacter()
 void AADemoCharacter::BeginPlay()
 {
     Super::BeginPlay();
-    
-    if (HasAuthority()&&DefaultWeaponClass)
+
+    if (FirstPersonCamera && GetCapsuleComponent())
+    {
+        FirstPersonCamera->AttachToComponent(
+            GetCapsuleComponent(),
+            FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+
+        FirstPersonCamera->SetRelativeLocation(FVector(-10.0f, 0.0f, BaseEyeHeight));
+        FirstPersonCamera->bUsePawnControlRotation = true;
+    }
+
+    UpdateViewMeshesVisibility();
+
+    if (HasAuthority() && DefaultWeaponClass)
     {
         Server_EquipWeapon(DefaultWeaponClass);
     }
 
-    
+    UE_LOG(LogTemp, Warning, TEXT("[%s] BeginPlay 完成，摄像机已重设"), *GetName());
 }
 
 // Called every frame
@@ -79,7 +95,7 @@ void AADemoCharacter::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    DOREPLIFETIME(AADemoCharacter,CurrentWeapon);
+    DOREPLIFETIME(AADemoCharacter, CurrentWeapon);
     //DOREPLIFETIME(AADemoCharacter,bIsWeaponEquipped);
 }
 
@@ -101,9 +117,11 @@ void AADemoCharacter::SetupPlayerInputComponent(UInputComponent *PlayerInputComp
     PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AADemoCharacter::Jump);
     PlayerInputComponent->BindAction("Jump", IE_Released, this, &AADemoCharacter::StopJumping);
 
-   
     //射击
     PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &AADemoCharacter::FireWeapon);
+
+    //换弹
+    PlayerInputComponent->BindAction("Reload", IE_Pressed, this, &AADemoCharacter::ReloadWeapon);
 }
 
 void AADemoCharacter::MoveForward(float Value)
@@ -114,7 +132,7 @@ void AADemoCharacter::MoveForward(float Value)
         const FRotator YawRotation(0, Rotation.Yaw, 0);
         const FVector  Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 
-        AddMovementInput(Direction,Value);
+        AddMovementInput(Direction, Value);
     }
 }
 
@@ -126,7 +144,7 @@ void AADemoCharacter::MoveRight(float Value)
         const FRotator YawRotation(0, Rotation.Yaw, 0);
         const FVector  Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-        AddMovementInput(Direction,Value);
+        AddMovementInput(Direction, Value);
     }
 }
 
@@ -176,19 +194,10 @@ void AADemoCharacter::OnRep_Current_Weapon()
         return;
     }
 
-    USkeletalMeshComponent* AttachMesh=nullptr;
+    USkeletalMeshComponent *AttachMesh     = nullptr;
+    const bool              bIsLocalPlayer = IsLocallyControlled();
 
-    const bool bIsServer=GetWorld()&&GetWorld()->IsServer();
-    const bool bIsLocalPlayer=IsLocallyControlled();
-
-    if (bIsLocalPlayer)
-    {
-        AttachMesh = FirstPersonMesh ? FirstPersonMesh : Mesh1P;
-    }else
-    {
-        AttachMesh=GetMesh();
-    }
-
+    AttachMesh = bIsLocalPlayer ? (FirstPersonMesh ? FirstPersonMesh : Mesh1P) : GetMesh();
     if (!AttachMesh)
     {
         UE_LOG(LogTemp, Error, TEXT("[%s] OnRep_Current_Weapon: AttachMesh is null!"), *GetName());
@@ -197,55 +206,65 @@ void AADemoCharacter::OnRep_Current_Weapon()
 
     if (!AttachMesh->DoesSocketExist(TEXT("GripPoint")))
     {
-        UE_LOG(LogTemp, Warning, TEXT("[%s] Attach mesh missing GripPoint socket! Using actor attach fallback."), *GetName());
-        CurrentWeapon->AttachToActor(this,FAttachmentTransformRules::KeepRelativeTransform);
-        return;
-    }
-    CurrentWeapon->AttachToComponent(AttachMesh,FAttachmentTransformRules::SnapToTargetNotIncludingScale, TEXT("GripPoint"));
-    FTransform SocketWorld=AttachMesh->GetSocketTransform(TEXT("GripPoint"),RTS_World);
-    CurrentWeapon->SetActorTransform(SocketWorld);
-
-    UE_LOG(LogTemp, Warning, TEXT("[OnRep] %s attached weapon %s to %s"),
-       *GetName(),
-       *CurrentWeapon->GetName(),
-       bIsLocalPlayer ? TEXT("FirstPersonMesh") : TEXT("Mesh3P"));
-
-    if (bIsLocalPlayer)
-    {
-        if (FirstPersonMesh)FirstPersonMesh->SetOwnerNoSee(false);
-        if (GetMesh())GetMesh()->SetOwnerNoSee(true);
+        UE_LOG(LogTemp, Warning, TEXT("[%s] Attach mesh missing GripPoint socket! Attaching to actor fallback."),
+               *GetName());
+        CurrentWeapon->AttachToActor(this, FAttachmentTransformRules::KeepRelativeTransform);
     }
     else
     {
-        if (FirstPersonMesh)FirstPersonMesh->SetOwnerNoSee(true);
-        if (GetMesh())GetMesh()->SetOwnerNoSee(false);
+        CurrentWeapon->AttachToComponent(AttachMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+                                         TEXT("GripPoint"));
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("OnRep_Current_Weapon - Character: %s, IsLocallyControlled: %d, AttachMesh: %s"),
-    *GetName(),
-    IsLocallyControlled(),
-    AttachMesh ? *AttachMesh->GetName() : TEXT("None")
-);
-
-    if (USkeletalMeshComponent*Mesh3P=GetMesh())
+    if (USkeletalMeshComponent *WMesh = CurrentWeapon->GetWeaponMesh())
     {
-        if (UAnimInstance*AnimInstance=Mesh3P->GetAnimInstance())
+        WMesh->SetOnlyOwnerSee(bIsLocalPlayer);
+        WMesh->SetOwnerNoSee(!bIsLocalPlayer);
+
+        WMesh->SetCastShadow(!bIsLocalPlayer);
+    }
+
+    if (bIsLocalPlayer)
+    {
+        if (FirstPersonMesh)
+            FirstPersonMesh->SetOwnerNoSee(false);
+        if (GetMesh())
+            GetMesh()->SetOwnerNoSee(true);
+    }
+
+    else
+    {
+        if (FirstPersonMesh)
+            FirstPersonMesh->SetOwnerNoSee(true);
+        if (GetMesh())
+            GetMesh()->SetOwnerNoSee(false);
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[OnRep] %s attached weapon %s to %s"),
+           *GetName(),
+           *CurrentWeapon->GetName(),
+           bIsLocalPlayer ? TEXT("FirstPersonMesh") : TEXT("Mesh3P"));
+
+    if (USkeletalMeshComponent *Mesh3P = GetMesh())
+    {
+        if (UAnimInstance *AnimInstance = Mesh3P->GetAnimInstance())
         {
-            bool bWeaponEquipped=(CurrentWeapon!=nullptr);
+            bool bWeaponEquipped = (CurrentWeapon != nullptr);
 
-            UClass *AnimClass =AnimInstance->GetClass();
+            UClass *AnimClass = AnimInstance->GetClass();
 
-            if (FBoolProperty*BoolProp=FindFProperty<FBoolProperty>(AnimClass,TEXT("bIsRifleEquipped")))
+            if (FBoolProperty *BoolProp = FindFProperty<FBoolProperty>(AnimClass,TEXT("bIsRifleEquipped")))
             {
-                BoolProp->SetPropertyValue_InContainer(AnimInstance,bWeaponEquipped);
+                BoolProp->SetPropertyValue_InContainer(AnimInstance, bWeaponEquipped);
 
-                UE_LOG(LogTemp, Warning, TEXT("AnimBP updated: bIsRifleEquipped set to %s"), bWeaponEquipped ? TEXT("True") : TEXT("False"));
+                UE_LOG(LogTemp, Warning, TEXT("AnimBP updated: bIsRifleEquipped set to %s"),
+                       bWeaponEquipped ? TEXT("True") : TEXT("False"));
             }
             else
             {
                 UE_LOG(LogTemp, Error, TEXT("AnimBP variable 'bIsRifleEquipped' not found or not a boolean."));
             }
-            
+
         }
     }
 }
@@ -253,7 +272,8 @@ void AADemoCharacter::OnRep_Current_Weapon()
 
 void AADemoCharacter::Server_EquipWeapon_Implementation(TSubclassOf<AAWeapon> WeaponClass)
 {
-    if (!HasAuthority()) return;
+    if (!HasAuthority())
+        return;
 
     if (CurrentWeapon)
     {
@@ -268,11 +288,12 @@ void AADemoCharacter::Server_EquipWeapon_Implementation(TSubclassOf<AAWeapon> We
     }
 
     FActorSpawnParameters SpawnParams;
-    SpawnParams.Owner = this;
-    SpawnParams.Instigator = this;
+    SpawnParams.Owner                          = this;
+    SpawnParams.Instigator                     = this;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-    AAWeapon*NewWeapon=GetWorld()->SpawnActor<AAWeapon>(WeaponClass,FVector::ZeroVector,FRotator::ZeroRotator,SpawnParams);
+    AAWeapon *NewWeapon = GetWorld()->SpawnActor<AAWeapon>(WeaponClass, FVector::ZeroVector, FRotator::ZeroRotator,
+                                                           SpawnParams);
 
     if (!NewWeapon)
     {
@@ -287,8 +308,8 @@ void AADemoCharacter::Server_EquipWeapon_Implementation(TSubclassOf<AAWeapon> We
         NewWeapon->GetWeaponMesh()->SetIsReplicated(true);
     }
 
-    CurrentWeapon=NewWeapon;
-    OnRep_Current_Weapon(); 
+    CurrentWeapon = NewWeapon;
+    OnRep_Current_Weapon();
 }
 
 
@@ -296,32 +317,33 @@ void AADemoCharacter::OnRep_Health()
 {
     UE_LOG(LogTemp, Warning, TEXT("Client: Health updated to %f"), Health);
 
-    if (Health<=0.0f)
+    if (Health <= 0.0f)
     {
         UE_LOG(LogTemp, Warning, TEXT("Client: %s has been killed."), *GetName());
     }
 }
 
-float AADemoCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const &DamageEvent, class AController *EventInstigator, AActor *DamageCauser)
+float AADemoCharacter::TakeDamage(float              DamageAmount, struct FDamageEvent const &DamageEvent,
+                                  class AController *EventInstigator, AActor *                DamageCauser)
 {
     if (!HasAuthority())
     {
         return 0.0f;
     }
 
-    const float ActualDamage=Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
-    if (ActualDamage<=0)
+    const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+    if (ActualDamage <= 0)
     {
         return 0.0f;
     }
 
-    Health=FMath::Clamp(Health-ActualDamage,0.0f,MaxHealth);
+    Health = FMath::Clamp(Health - ActualDamage, 0.0f, MaxHealth);
 
-    if (Health<=0)
+    if (Health <= 0)
     {
-        if (AArenaNetDemoGameModeBase*GM=Cast<AArenaNetDemoGameModeBase>(GetWorld()->GetAuthGameMode()))
+        if (AArenaNetDemoGameModeBase *GM = Cast<AArenaNetDemoGameModeBase>(GetWorld()->GetAuthGameMode()))
         {
-            GM->Authority_RegisterKill(EventInstigator,this);
+            GM->Authority_RegisterKill(EventInstigator, this);
 
             GM->RequestRespawn(this);
         }
@@ -333,4 +355,48 @@ float AADemoCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const 
     return ActualDamage;
 }
 
+void AADemoCharacter::UpdateViewMeshesVisibility()
+{
+    if (IsLocallyControlled())
+    {
+        FirstPersonMesh->SetOwnerNoSee(false);
+        GetMesh()->SetOwnerNoSee(true);
+    }
+    else
+    {
+        FirstPersonMesh->SetOwnerNoSee(true);
+        GetMesh()->SetOwnerNoSee(false);
+    }
+}
 
+void AADemoCharacter::OnResapawn()
+{
+
+    UpdateViewMeshesVisibility();
+
+    Health = MaxHealth;
+
+    if (FirstPersonCamera && GetCapsuleComponent())
+    {
+        FirstPersonCamera->AttachToComponent(
+            GetCapsuleComponent(),
+            FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+        FirstPersonCamera->SetRelativeLocation(FVector(-10.0f, 0.0f, BaseEyeHeight));
+        FirstPersonCamera->bUsePawnControlRotation = true;
+    }
+
+    if (HasAuthority() && DefaultWeaponClass)
+    {
+        Server_EquipWeapon(DefaultWeaponClass);
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[%s] OnRespawn 执行完毕，摄像机与可见性重置完成"), *GetName());
+}
+
+void AADemoCharacter::ReloadWeapon()
+{
+    if (CurrentWeapon)
+    {
+        CurrentWeapon->Reload();
+    }
+}

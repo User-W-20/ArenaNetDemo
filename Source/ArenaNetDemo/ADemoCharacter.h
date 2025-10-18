@@ -29,6 +29,8 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category= "Mesh")
     USkeletalMeshComponent *FirstPersonMesh;
 
+    void UpdateViewMeshesVisibility();
+    
     //移动
     void MoveForward(float Value);
     void MoveRight(float Value);
@@ -40,12 +42,14 @@ protected:
 
     void FireWeapon();
 
+    UFUNCTION()
+    void ReloadWeapon();
+    
     //武器
     UPROPERTY(EditDefaultsOnly,BlueprintReadOnly,Category="Weapon")
     TSubclassOf<class AAWeapon>DefaultWeaponClass;
     
-    UPROPERTY(ReplicatedUsing=OnRep_Current_Weapon, BlueprintReadOnly, Category= "Weapon")
-    class AAWeapon *CurrentWeapon;
+    
 
     UFUNCTION()
     void OnRep_Current_Weapon();
@@ -74,5 +78,12 @@ public:
 
     UFUNCTION(Server, Reliable)
     void Server_EquipWeapon(TSubclassOf<AAWeapon> WeaponClass);
+
+
+    UPROPERTY(ReplicatedUsing=OnRep_Current_Weapon, BlueprintReadOnly, Category= "Weapon")
+    class AAWeapon *CurrentWeapon;
+
+    
+    void OnResapawn();
 
 };

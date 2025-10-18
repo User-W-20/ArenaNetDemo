@@ -6,14 +6,17 @@
 #include "ADemoGameState.h"
 #include "AWeapon.h"
 #include "ADemoPlayerState.h"
+#include "DemoHUD.h"
 
 AArenaNetDemoGameModeBase::AArenaNetDemoGameModeBase()
 {
     DefaultPawnClass=AADemoCharacter::StaticClass();
 
-    PlayerStateClass=AADemoCharacter::StaticClass();
+    PlayerStateClass=AADemoPlayerState::StaticClass();
 
     GameStateClass=AADemoGameState::StaticClass();
+
+    HUDClass=ADemoHUD::StaticClass();
 }
 
 void AArenaNetDemoGameModeBase::PostLogin(APlayerController *NewPlayer)
@@ -35,6 +38,8 @@ void AArenaNetDemoGameModeBase::PostLogin(APlayerController *NewPlayer)
 
 void AArenaNetDemoGameModeBase::Authority_RegisterKill(AController *KillerController, AActor *VictimActor)
 {
+    if (!HasAuthority())return;
+    
     //更新击杀者分数
     if (AADemoPlayerState* KillerPS=KillerController?Cast<AADemoPlayerState>(KillerController->PlayerState):nullptr)
     {
@@ -65,23 +70,22 @@ void AArenaNetDemoGameModeBase::HandleMatchEnd(class AADemoPlayerState *Winner)
         return;
     }
 
+    UE_LOG(LogTemp, Warning, TEXT("比赛结束！赢家：%s"), Winner ? *Winner->GetPlayerName() : TEXT("未知"));
+    
     if (AADemoGameState*DemoGameState=Cast<AADemoGameState>(GameState))
     {
-        if (DemoGameState->CurrentMatchState==EMatchState::Finished)
-        {
-            return;
-        }
-
         DemoGameState->WinningPlayerState=Winner;
         DemoGameState->CurrentMatchState=EMatchState::Finished;
-        
     }
 
+  
+    Multicast_OnMatchEnd(Winner);
+        
     for (FConstPlayerControllerIterator It=GetWorld()->GetPlayerControllerIterator();It;++It)
     {
         if (APlayerController*PC=It->Get())
         {
-            PC->SetCinematicMode(true,true,true,true,true);
+            PC->DisableInput(PC);
         }
     }
 }
@@ -96,10 +100,42 @@ void AArenaNetDemoGameModeBase::RequestRespawn(ACharacter *DeadCharter)
     AController *Controller =DeadCharter->GetController();
     if (Controller)
     {
-        AActor *StartSpot=FindPlayerStart(Controller);
+        Controller->UnPossess();
 
+        DeadCharter->Destroy();
+
+        AActor *StartSpot=FindPlayerStart(Controller);
+        
         RestartPlayerAtPlayerStart(Controller,StartSpot);
+
+       APlayerController*PC=Cast<APlayerController>(Controller);
+        if (PC)
+        {
+            APawn* NewPawn=PC->GetPawn();
+
+            if (NewPawn)
+            {
+                PC->SetViewTarget(NewPawn);
+
+                AADemoCharacter*DemoChar=Cast<AADemoCharacter>(NewPawn);
+                if (DemoChar)
+                {
+                    DemoChar->OnResapawn();
+                }
+            }
+        }
+    }
+}
+
+void AArenaNetDemoGameModeBase::Multicast_OnMatchEnd_Implementation(AADemoPlayerState *WinnerPS)
+{
+    FString WinnerName=WinnerPS?WinnerPS->GetPlayerName(): TEXT("未知");
+    FString EndMsg=FString::Printf(TEXT("🏆 比赛结束！赢家：%s"), *WinnerName);
+
+    if (GEngine)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, 6.0f, FColor::Yellow, EndMsg);
     }
 
-    DeadCharter->Destroy();
+    UE_LOG(LogTemp, Warning, TEXT("[Multicast] 比赛结束：赢家为 %s"), *WinnerName);
 }

@@ -6,8 +6,9 @@
 
 AADemoPlayerState::AADemoPlayerState()
 {
-    Kills=0;
-    Deaths=0;
+    bReplicates = true;
+    Kills       = 0;
+    Deaths      = 0;
 }
 
 
@@ -15,22 +16,34 @@ void AADemoPlayerState::GetLifetimeReplicatedProps(TArray<class FLifetimePropert
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    DOREPLIFETIME(AADemoPlayerState,Kills);
-    DOREPLIFETIME(AADemoPlayerState,Deaths);
+    DOREPLIFETIME(AADemoPlayerState, Kills);
+    DOREPLIFETIME(AADemoPlayerState, Deaths);
 }
 
-void AADemoPlayerState::IncrementKills(int32 Amount)
+void AADemoPlayerState::IncrementKills()
 {
     if (HasAuthority())
     {
-        Kills+=Amount;
+        ++Kills;
+        OnRep_kills();
     }
 }
 
-void AADemoPlayerState::IncrementDeaths(int Amount)
+void AADemoPlayerState::IncrementDeaths()
 {
     if (HasAuthority())
     {
-        Deaths+=Amount;
+        ++Deaths;
+        OnRep_Deaths();
     }
+}
+
+void AADemoPlayerState::OnRep_kills()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[%s] Kill Count Updated: %d"), *GetPlayerName(), Kills);
+}
+
+void AADemoPlayerState::OnRep_Deaths()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[%s] Death Count Updated: %d"), *GetPlayerName(), Deaths);
 }
