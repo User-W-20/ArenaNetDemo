@@ -15,7 +15,7 @@ AADemoCharacter::AADemoCharacter()
     PrimaryActorTick.bCanEverTick = true;
     bReplicates                   = true;
 
-    SetReplicates(true);
+    //SetReplicates(true);
 
     //第一人称
     FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
@@ -96,7 +96,6 @@ void AADemoCharacter::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
     DOREPLIFETIME(AADemoCharacter, CurrentWeapon);
-    //DOREPLIFETIME(AADemoCharacter,bIsWeaponEquipped);
 }
 
 

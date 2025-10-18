@@ -30,31 +30,35 @@ void ADemoHUD::DrawHUD()
         FVector2D CrosshairDrawPos(Center.X - (CrosshairTexture->GetSurfaceWidth() * 0.5f),
                                    Center.Y - (CrosshairTexture->GetSurfaceHeight() * 0.5f));
 
-        FCanvasTileItem TileItem(CrosshairDrawPos,CrosshairTexture->GetResource(),FLinearColor::White);
-        TileItem.BlendMode=SE_BLEND_Translucent;
+        FCanvasTileItem TileItem(CrosshairDrawPos, CrosshairTexture->GetResource(), FLinearColor::White);
+        TileItem.BlendMode = SE_BLEND_Translucent;
         Canvas->DrawItem(TileItem);
     }
 
-    APlayerController*PC=GetOwningPlayerController();
-    if (!PC||!PC->IsLocalController())return;
+    APlayerController *PC = GetOwningPlayerController();
+    if (!PC || !PC->IsLocalController())
+        return;
 
-    APawn*MyPawn=PC->GetPawn();
-    if (!MyPawn) return;
+    APawn *MyPawn = PC->GetPawn();
+    if (!MyPawn)
+        return;
 
-    AADemoCharacter *MyCharacter=Cast<AADemoCharacter>(MyPawn);
-    if (!MyCharacter)return;
+    AADemoCharacter *MyCharacter = Cast<AADemoCharacter>(MyPawn);
+    if (!MyCharacter)
+        return;
 
-   AAWeapon*Weapon=MyCharacter->CurrentWeapon;
-    if (!Weapon)return;
-    
-    const int32 CurrentAmmo=Weapon->CurrentAmmo;
-    const int32 MaxAmmo=Weapon->GetMaxAmmo();
+    AAWeapon *Weapon = MyCharacter->CurrentWeapon;
+    if (!Weapon)
+        return;
 
-    FString AmmoText=FString::Printf(TEXT("Ammo: %d / %d"),CurrentAmmo,MaxAmmo);
+    const int32 CurrentAmmo = Weapon->CurrentAmmo;
+    const int32 MaxAmmo     = Weapon->GetMaxAmmo();
 
-    FVector2D TextPos(50.0f,Canvas->ClipY-100.0f);
-    FLinearColor TextColor=FLinearColor::White;
-    float FontScale=1.3f;
+    FString AmmoText = FString::Printf(TEXT("Ammo: %d / %d"), CurrentAmmo, MaxAmmo);
 
-    DrawText(AmmoText,TextColor,TextPos.X,TextPos.Y,nullptr,FontScale,nullptr);
+    FVector2D    TextPos(50.0f, Canvas->ClipY - 100.0f);
+    FLinearColor TextColor = FLinearColor::White;
+    float        FontScale = 1.3f;
+
+    DrawText(AmmoText, TextColor, TextPos.X, TextPos.Y, nullptr, FontScale, nullptr);
 }

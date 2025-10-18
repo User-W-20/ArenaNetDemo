@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "Blueprint/UserWidget.h"
 #include "ArenaNetDemoGameModeBase.generated.h"
 
 /**
@@ -22,6 +23,7 @@ protected:
 public:
     virtual void PostLogin(APlayerController *NewPlayer) override;
 
+    virtual void BeginPlay() override;
     //击杀注册函数
     void Authority_RegisterKill(AController *KillerController, AActor *VictimActor);
 
@@ -31,8 +33,16 @@ public:
     AArenaNetDemoGameModeBase();
 
     //重生请求
-    void RequestRespawn(ACharacter*DeadCharter);
+    void RequestRespawn(ACharacter *DeadCharter);
 
-    UFUNCTION(NetMulticast,Reliable)
-    void Multicast_OnMatchEnd(AADemoPlayerState*WinnerPS);
+    UFUNCTION(NetMulticast, Reliable)
+    void Multicast_OnMatchEnd(AADemoPlayerState *WinnerPS);
+
+    UPROPERTY(EditDefaultsOnly, Category = "UI")
+    TSubclassOf<UUserWidget> MatchResultClass;
+
+    UFUNCTION(BlueprintCallable)
+    void ShowMatchResultUI();
+
+
 };

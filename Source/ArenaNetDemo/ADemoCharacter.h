@@ -30,7 +30,7 @@ protected:
     USkeletalMeshComponent *FirstPersonMesh;
 
     void UpdateViewMeshesVisibility();
-    
+
     //移动
     void MoveForward(float Value);
     void MoveRight(float Value);
@@ -44,12 +44,11 @@ protected:
 
     UFUNCTION()
     void ReloadWeapon();
-    
+
     //武器
-    UPROPERTY(EditDefaultsOnly,BlueprintReadOnly,Category="Weapon")
-    TSubclassOf<class AAWeapon>DefaultWeaponClass;
-    
-    
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon")
+    TSubclassOf<class AAWeapon> DefaultWeaponClass;
+
 
     UFUNCTION()
     void OnRep_Current_Weapon();
@@ -67,8 +66,9 @@ protected:
     virtual float TakeDamage(float              DamageAmount, struct FDamageEvent const &DamageEvent,
                              class AController *EventInstigator, AActor *                DamageCauser) override;
 
-    UPROPERTY(VisibleAnywhere,BlueprintReadOnly,Category="Mesh")
-    USkeletalMeshComponent* Mesh1P;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Mesh")
+    USkeletalMeshComponent *Mesh1P;
+
 public:
     // Called every frame
     virtual void Tick(float DeltaTime) override;
@@ -83,7 +83,7 @@ public:
     UPROPERTY(ReplicatedUsing=OnRep_Current_Weapon, BlueprintReadOnly, Category= "Weapon")
     class AAWeapon *CurrentWeapon;
 
-    
+
     void OnResapawn();
 
 };

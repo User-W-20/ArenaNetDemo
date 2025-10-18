@@ -5,13 +5,13 @@
 
 AADemoGameState::AADemoGameState()
 {
-    CurrentMatchState=EMatchState::WaitingToStart;
+    CurrentMatchState = EMatchState::WaitingToStart;
 }
 
 void AADemoGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty> &OutLifetimeProps) const
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-    DOREPLIFETIME(AADemoGameState,CurrentMatchState);
-    DOREPLIFETIME(AADemoGameState,WinningPlayerState);
+    DOREPLIFETIME(AADemoGameState, CurrentMatchState);
+    DOREPLIFETIME(AADemoGameState, WinningPlayerState);
 }

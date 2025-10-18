@@ -13,50 +13,50 @@
 // Sets default values
 AAWeapon::AAWeapon()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
+    // Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+    PrimaryActorTick.bCanEverTick = false;
 
-    WeaponMesh=CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
-    RootComponent=WeaponMesh;
-    
-	bReplicates=true;
+    WeaponMesh    = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
+    RootComponent = WeaponMesh;
+
+    bReplicates = true;
     SetReplicateMovement(true);
     WeaponMesh->SetIsReplicated(true);
-    
-	BaseDamage=20.0f;
 
-    CurrentAmmo=MaxAmmo;
-    SetReplicates(true);
+    BaseDamage = 20.0f;
+
+    CurrentAmmo = MaxAmmo;
 }
 
 // Called when the game starts or when spawned
 void AAWeapon::BeginPlay()
 {
-	Super::BeginPlay();
-	
+    Super::BeginPlay();
+
 }
 
 // Called every frame
 void AAWeapon::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+    Super::Tick(DeltaTime);
 
 }
 
-void AAWeapon::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
+void AAWeapon::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty> &OutLifetimeProps) const
 {
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(AAWeapon, CurrentAmmo);
 }
 
 void AAWeapon::Fire()
 {
-    APawn* OwnerPawn = Cast<APawn>(GetOwner());
-    if (!OwnerPawn) return;
+    APawn *OwnerPawn = Cast<APawn>(GetOwner());
+    if (!OwnerPawn)
+        return;
 
-    FVector ViewLoc;
+    FVector  ViewLoc;
     FRotator ViewRot;
-    if (AController* PC = OwnerPawn->GetController())
+    if (AController *PC = OwnerPawn->GetController())
     {
         PC->GetPlayerViewPoint(ViewLoc, ViewRot);
     }
@@ -66,7 +66,7 @@ void AAWeapon::Fire()
         ViewRot = OwnerPawn->GetControlRotation();
     }
 
-    const FVector ShootDir = ViewRot.Vector();
+    const FVector ShootDir   = ViewRot.Vector();
     const FVector TraceStart = ViewLoc;
 
     if (!HasAuthority())
@@ -75,7 +75,8 @@ void AAWeapon::Fire()
         if (WeaponMesh && MuzzleFlashFX && OwnerPawn->IsLocallyControlled())
         {
             UGameplayStatics::SpawnEmitterAttached(MuzzleFlashFX, WeaponMesh, MuzzleSocketName);
-            if (FireSound) UGameplayStatics::PlaySoundAtLocation(this, FireSound, WeaponMesh->GetSocketLocation(MuzzleSocketName));
+            if (FireSound)
+                UGameplayStatics::PlaySoundAtLocation(this, FireSound, WeaponMesh->GetSocketLocation(MuzzleSocketName));
         }
         return;
     }
@@ -85,7 +86,8 @@ void AAWeapon::Fire()
 
 void AAWeapon::Server_Fire_Implementation(const FVector &TraceStart, const FVector_NetQuantizeNormal &ShootDir)
 {
-    if (!HasAuthority()) return;
+    if (!HasAuthority())
+        return;
 
     if (CurrentAmmo <= 0)
     {
@@ -96,13 +98,13 @@ void AAWeapon::Server_Fire_Implementation(const FVector &TraceStart, const FVect
     UE_LOG(LogTemp, Warning, TEXT("[Server] Fire executed. Remaining ammo: %d"), CurrentAmmo);
 
     const float TraceDistance = 50000.0f;
-    FVector TraceEnd = TraceStart + ShootDir * TraceDistance;
+    FVector     TraceEnd      = TraceStart + ShootDir * TraceDistance;
 
-    
-    FHitResult Hit;
+    FHitResult            Hit;
     FCollisionQueryParams QueryParams;
-    APawn* OwnerPawn = Cast<APawn>(GetOwner());
-    if (OwnerPawn) QueryParams.AddIgnoredActor(OwnerPawn);
+    APawn *               OwnerPawn = Cast<APawn>(GetOwner());
+    if (OwnerPawn)
+        QueryParams.AddIgnoredActor(OwnerPawn);
     QueryParams.AddIgnoredActor(this);
     QueryParams.bTraceComplex = true;
 
@@ -110,9 +112,10 @@ void AAWeapon::Server_Fire_Implementation(const FVector &TraceStart, const FVect
 
     if (bHit)
     {
-        if (AActor* HitActor = Hit.GetActor())
+        if (AActor *HitActor = Hit.GetActor())
         {
-            UGameplayStatics::ApplyPointDamage(HitActor, BaseDamage, ShootDir, Hit, OwnerPawn ? OwnerPawn->GetController() : nullptr, this, nullptr);
+            UGameplayStatics::ApplyPointDamage(HitActor, BaseDamage, ShootDir, Hit,
+                                               OwnerPawn ? OwnerPawn->GetController() : nullptr, this, nullptr);
         }
     }
 
@@ -121,38 +124,38 @@ void AAWeapon::Server_Fire_Implementation(const FVector &TraceStart, const FVect
 }
 
 
-
-void AAWeapon::Multicast_PlayFireEffects_Implementation(const FVector_NetQuantize &MuzzleLocation, const FVector_NetQuantize &TraceEnd)
+void AAWeapon::Multicast_PlayFireEffects_Implementation(const FVector_NetQuantize &MuzzleLocation,
+                                                        const FVector_NetQuantize &TraceEnd)
 {
     UE_LOG(LogTemp, Warning, TEXT("MULTICAST TRIGGERED! TraceEnd: %s"), *TraceEnd.ToString());
 
     if (FireSound)
     {
-        UGameplayStatics::PlaySoundAtLocation(this,FireSound,MuzzleLocation);
+        UGameplayStatics::PlaySoundAtLocation(this, FireSound, MuzzleLocation);
     }
 
     if (MuzzleFlashFX)
     {
-        FRotator MuzzleRotation=WeaponMesh->GetSocketRotation(TEXT("Muzzle"));
-        UGameplayStatics::SpawnEmitterAtLocation(GetWorld(),MuzzleFlashFX,MuzzleLocation,MuzzleRotation);
+        FRotator MuzzleRotation = WeaponMesh->GetSocketRotation(TEXT("Muzzle"));
+        UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), MuzzleFlashFX, MuzzleLocation, MuzzleRotation);
     }
 
-    APawn* OwnerPawn=Cast<APawn>(GetOwner());
+    APawn *OwnerPawn = Cast<APawn>(GetOwner());
 
-    FHitResult Hit;
+    FHitResult            Hit;
     FCollisionQueryParams QueryParams;
 
-    if (AActor*OwnerActor=GetOwner())
+    if (AActor *OwnerActor = GetOwner())
     {
         QueryParams.AddIgnoredActor(OwnerActor);
     }
     QueryParams.AddIgnoredActor(this);
-    
-    if (GetWorld()->LineTraceSingleByChannel(Hit,MuzzleLocation,TraceEnd,ECC_Visibility,QueryParams))
+
+    if (GetWorld()->LineTraceSingleByChannel(Hit, MuzzleLocation, TraceEnd, ECC_Visibility, QueryParams))
     {
         if (ImpactDecal)
         {
-            FRotator DecalRotation=Hit.ImpactNormal.Rotation();
+            FRotator DecalRotation = Hit.ImpactNormal.Rotation();
 
             UGameplayStatics::SpawnDecalAtLocation(
                 this,
@@ -191,16 +194,15 @@ void AAWeapon::OnRep_CurrentAmmo()
 
 void AAWeapon::Server_Reload_Implementation()
 {
-   Reload();
+    Reload();
 }
 
 int32 AAWeapon::GetCurrentAmmo() const
 {
-    return  CurrentAmmo;
+    return CurrentAmmo;
 }
 
 int32 AAWeapon::GetMaxAmmo() const
 {
-    return  MaxAmmo;
+    return MaxAmmo;
 }
-

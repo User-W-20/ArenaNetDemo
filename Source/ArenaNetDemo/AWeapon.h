@@ -57,6 +57,7 @@ protected:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon")
     int32 MaxAmmo = 30;
+
 public:
     // Called every frame
     virtual void Tick(float DeltaTime) override;
@@ -72,15 +73,15 @@ public:
     UFUNCTION()
     void OnRep_CurrentAmmo();
 
-    UFUNCTION(Server,Reliable)
+    UFUNCTION(Server, Reliable)
     void Server_Reload();
 
-    UFUNCTION(BlueprintCallable,Category="Weapon")
-    int32 GetCurrentAmmo()const;
+    UFUNCTION(BlueprintCallable, Category="Weapon")
+    int32 GetCurrentAmmo() const;
 
     UFUNCTION(BlueprintCallable, Category="Weapon")
     int32 GetMaxAmmo() const;
-    
+
     FORCEINLINE USkeletalMeshComponent *GetWeaponMesh() const
     {
         return WeaponMesh;
